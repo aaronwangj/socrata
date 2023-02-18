@@ -1,4 +1,5 @@
 import os
+from threading import Thread
 import torch
 from transformers import Speech2TextProcessor, Speech2TextForConditionalGeneration
 from datasets import load_dataset
@@ -9,11 +10,30 @@ import openai
 import time
 # summarizer = pipeline("summarization", model="philschmid/flan-t5-base-samsum")
 
-openai.api_key = "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"
+openai.api_key = "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"
 model = Speech2TextForConditionalGeneration.from_pretrained("facebook/s2t-small-librispeech-asr")
 processor = Speech2TextProcessor.from_pretrained("facebook/s2t-small-librispeech-asr")
 
+class CustomThread(Thread):
+    def __init__(self, group=None, target=None, name=None,
+                 args=(), kwargs={}, Verbose=None):
+        Thread.__init__(self, group, target, name, args, kwargs)
+        self._return = None
+ 
+    def run(self):
+        if self._target is not None:
+            self._return = self._target(*self._args, **self._kwargs)
+             
+    def join(self, *args):
+        Thread.join(self, *args)
+        return self._return
+    
+    def value(self):
+        return self._return
+    
+
 def MP4ToMP3(mp4, wav):
+    print("Start Conversion")
     start = time.time()
     FILETOCONVERT = AudioFileClip(mp4)
     FILETOCONVERT.write_audiofile(wav, ffmpeg_params=["-ac", "1", "-ar", "16000"], logger=None)
@@ -26,6 +46,7 @@ VIDEO_FILE_PATH = "/Users/aaron/Downloads/test.mp4"
 AUDIO_FILE_PATH = "/Users/aaron/Downloads/test.wav"
 
 def map_to_array(wav_file):
+    print("Start Mapping")
     start = time.time()
     speech_array, _ = sf.read(wav_file)
     end = time.time()
@@ -34,6 +55,7 @@ def map_to_array(wav_file):
 
 def speech2text(mp4_file, audio_path='/test.wav'):
     MP4ToMP3(mp4_file, audio_path)
+    print("Start Transcription")
     start = time.time()
     new_audio_data = map_to_array(audio_path)
 
@@ -50,6 +72,7 @@ def speech2text(mp4_file, audio_path='/test.wav'):
 
 
 def generate_summary(transcript):
+    print("Start Summary")
     start = time.time()
 
     summary_prompting = "write a summary of the following text: "
@@ -76,10 +99,11 @@ def generate_summary(transcript):
 
     print("SUMMARY TOOK: ", end-start)
 
+
     return [sum_response_1, sum_response_2]
 
 def generate_quiz(transcript):
-
+    print("Start Quiz")
     start = time.time()
 
     quiz_prompting = "write me five multiple choice quiz questions on the content of the following: "
@@ -106,18 +130,23 @@ def generate_quiz(transcript):
     end = time.time()
     print("QUIZ TOOK: ", end-start)
 
+
     return [quiz_response_1, quiz_response_2]
 
 
-def main_func(mp4_file, audio_path='/test.wav'):
+def main_func(mp4_file, audio_path='test.wav'):
     transcript = speech2text(mp4_file, audio_path)
-    summary = generate_summary(transcript)
-    quiz = generate_quiz(transcript)
-
-
+    summary_thread = CustomThread(target=generate_summary, args=(transcript,))
+    summary_thread.start()
+    quiz_thread = CustomThread(target=generate_quiz, args=(transcript,))
+    quiz_thread.start()
+    summary_thread.join()
+    summary = summary_thread.value()
+    quiz_thread.join()
+    quiz = quiz_thread.value()
     print("TRANSCRIPT: ", transcript)
     print("SUMMARY: ", summary)
     print("QUIZ: ", quiz)
-    return summary, quiz 
+    return transcript, summary, quiz 
 
-main_func(VIDEO_FILE_PATH, AUDIO_FILE_PATH)
+# main_func(VIDEO_FILE_PATH, AUDIO_FILE_PATH)
