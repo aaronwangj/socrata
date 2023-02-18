@@ -1,0 +1,8 @@
+moviepy==1.0.3
+transformers==4.26.1
+torch==1.13.1
+datasets==2.9.0
+soundfile==0.12.1
+sentencepiece
+librosa
+openai==0.26.5
